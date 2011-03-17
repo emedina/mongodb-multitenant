@@ -10,22 +10,26 @@ grails.project.dependency.resolution = {
     }
     log "warn" // log level of Ivy resolver, either 'error', 'warn', 'info', 'debug' or 'verbose'
     repositories {
-        grailsPlugins()
-        grailsHome()
-        grailsCentral()
-
-        // uncomment the below to enable remote dependency resolution
-        // from public Maven repositories
-        //mavenLocal()
-        //mavenCentral()
-        //mavenRepo "http://snapshots.repository.codehaus.org"
-        //mavenRepo "http://repository.codehaus.org"
-        //mavenRepo "http://download.java.net/maven/2/"
-        //mavenRepo "http://repository.jboss.com/maven2/"
+        mavenCentral()
+	 	mavenRepo 'http://maven.springframework.org/milestone'	
     }
     dependencies {
         // specify dependencies here under either 'build', 'compile', 'runtime', 'test' or 'provided' scopes eg.
 
-        // runtime 'mysql:mysql-connector-java:5.1.13'
+
+	    def excludes = {
+	        excludes "slf4j-simple", "persistence-api", "commons-logging", "jcl-over-slf4j", "slf4j-api", "jta"
+	        excludes "spring-core", "spring-beans", "spring-aop", "spring-asm","spring-webmvc","spring-tx", "spring-context", "spring-web", "log4j", "slf4j-log4j12"
+	    }
+		compile("org.mongodb:mongo-java-driver:2.4")
+		runtime("com.gmongo:gmongo:0.7", excludes)
+      	runtime("org.grails:grails-datastore-gorm:1.0.0.M4", excludes)	
+      	runtime("org.grails:grails-datastore-gorm-mongo:1.0.0.M4", excludes)
+      	runtime( "org.springframework:spring-datastore-web:1.0.0.M4", excludes)
+      	test("org.grails:grails-datastore-gorm-test:1.0.0.M4", excludes)
     }
+
+	plugins {
+		build ":maven-publisher:0.7.5"
+	}
 }

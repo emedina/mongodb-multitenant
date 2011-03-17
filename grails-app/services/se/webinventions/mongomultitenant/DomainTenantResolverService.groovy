@@ -4,17 +4,32 @@ package se.webinventions.mongomultitenant
 import org.springframework.web.context.request.RequestContextHolder
 import org.codehaus.groovy.grails.web.servlet.mvc.GrailsWebRequest
 import org.codehaus.groovy.grails.commons.ConfigurationHolder
+import org.springframework.context.ApplicationContextAware
+import org.springframework.context.ApplicationContext
+import org.codehaus.groovy.grails.web.converters.ConverterUtil
+import org.apache.log4j.Logger
+import org.codehaus.groovy.grails.commons.DefaultGrailsApplication
+import org.codehaus.groovy.grails.commons.GrailsApplication
 
 /**
  *
  */
-class DomainTenantResolverService implements MongodbTenantResolver {
+class DomainTenantResolverService implements MongodbTenantResolver, ApplicationContextAware {
   //TODO: implement cashing (hosts) of already fetched tenants.
 
   static transactional = false
   static scope = "session"
+  static proxy = true
+  GrailsApplication grailsApplication
+  def tenantServiceProxy
+
+  ApplicationContext applicationContext
+
+
 
   def config = ConfigurationHolder.getConfig();
+  Logger log = Logger.getLogger(getClass())
+
 
   TenantProvider defaultTenant //tenant that is cohering to the current url etc (default resovlved)
   TenantProvider currentTenant  //tenant that is forced by eg.g. admin
@@ -28,8 +43,21 @@ class DomainTenantResolverService implements MongodbTenantResolver {
   }
 
 
+  private String resolveServerName() {
+    def serverName = getCurrentRequestAttr()?.getRequest()?.getServerName();
+    if (!serverName) {
+      serverName = "localhost"
+    }
+    return serverName
+  }
+
   private GrailsWebRequest getCurrentRequestAttr() {
-    return RequestContextHolder.currentRequestAttributes()
+    try {
+      return RequestContextHolder.currentRequestAttributes()
+    } catch (IllegalStateException e) {
+      return null
+    }
+
   }
 
   /**
@@ -38,14 +66,47 @@ class DomainTenantResolverService implements MongodbTenantResolver {
    * @return
    */
   private TenantProvider resolveDomainTenant() {
-    def currentServerName = getCurrentRequestAttr().getRequest().getServerName();
-    def domainTenantMappings = SpringUtil.getApplicationContext().getBean("se.webinventions.TenantDomainMap").findAll("from se.webinventions.TenantDomainMap")
-    def tenant;
-    domainTenantMappings.each { dom ->
+    def currentServerName = resolveServerName()
 
-      if (currentServerName.toString().equalsIgnoreCase(dom.domainName)) {
-        tenant = dom?.tenant;
+    //ConverterUtil cu = new ConverterUtil();
+    //cu.setGrailsApplication(grailsApplication)
+
+    //cu.getDomainClass("se.webinventions.TenantDomainMap")
+    def domainClass = grailsApplication.getClassForName("se.webinventions.TenantDomainMap")
+
+
+    def domainTenantMappings
+    def tenant;
+    try {
+      domainTenantMappings = domainClass.list()
+
+    } catch (Exception e) {
+      //we are in bootstrapping perhaps so the gorm methods are not yet available
+      log.info("Bootstrapping so resolving tenant to bootstrapping tenant")
+      domainTenantMappings = []
+    }
+    finally {
+      domainTenantMappings?.each { dom ->
+
+        if (currentServerName.toString().equalsIgnoreCase(dom.domainName)) {
+          tenant = dom?.tenant;
+        }
       }
+
+      //if tenant is null still we need to find or create a default tenant with default options specified in config.groovy
+      if(!tenant) {
+        def deftenant = config?.grails?.mongo?.tenant?.defaultTenantName ?: "maindefaulttenant"
+        if(!tenantServiceProxy)
+        {
+          tenantServiceProxy = applicationContext.getBean("tenantServiceProxy")
+        }
+        tenant = tenantServiceProxy.createOrGetDefaultTenant(deftenant)
+         //try saving this tenant if possible
+
+
+      }
+
+
     }
 
     return tenant;
@@ -75,10 +136,15 @@ class DomainTenantResolverService implements MongodbTenantResolver {
   @Override
   String getTenantCollection(String originalCollectionName) {
 
+    if (!defaultTenant) {
+      resolvedefaultTenant()
+    }
+
+    //check with ? because in bootstrap it will be NULL!
     if (currentTenant) {
-      return originalCollectionName + currentTenant.getCollectionNameSuffix()
+      return originalCollectionName + currentTenant?.getCollectionNameSuffix()
     } else {
-      return originalCollectionName + defaultTenant.getCollectionNameSuffix()
+      return originalCollectionName + defaultTenant?.getCollectionNameSuffix()
     }
 
   }
@@ -86,11 +152,17 @@ class DomainTenantResolverService implements MongodbTenantResolver {
 
   @Override
   String getTenantDatabase(String originalDatabaseName) {
+    if (!defaultTenant) {
+      resolvedefaultTenant()
+    }
 
+
+    //check with ? because in bootstrapping situations the tenant will be NULL!
     if (currentTenant) {
-      return originalDatabaseName + currentTenant.getDatabaseNameSuffix()
+      return originalDatabaseName + currentTenant?.getDatabaseNameSuffix()
     } else {
-      return originalDatabaseName + defaultTenant.getDatabaseNameSuffix()
+      def suffix = defaultTenant?.getDatabaseNameSuffix()
+      return originalDatabaseName + suffix
     }
 
   }
@@ -103,7 +175,7 @@ class DomainTenantResolverService implements MongodbTenantResolver {
   @Override
   public void setTenantId(Object tenantid) {
     //find the tenant and set it
-    currentTenant = SpringUtil.getApplicationContext().getBean("se.webinventions.Tenant").findById(tenantid)
+    currentTenant = applicationContext?.getBean("se.webinventions.Tenant").get(tenantid)
     //currentTenant = tenantid
   }
 
@@ -123,5 +195,9 @@ class DomainTenantResolverService implements MongodbTenantResolver {
 
   void resetToDefaultTenant() {
     revertToDefaultTenant()
+  }
+
+  void setApplicationContext(ApplicationContext applicationContext) {
+    this.applicationContext = applicationContext
   }
 }

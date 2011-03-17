@@ -18,6 +18,10 @@ import com.mongodb.WriteConcern
 import org.springframework.datastore.mapping.model.DatastoreConfigurationException
 import java.util.concurrent.ConcurrentHashMap
 
+import org.springframework.datastore.mapping.mongo.config.MongoMappingContext
+import org.springframework.datastore.mapping.model.MappingContext
+import org.springframework.datastore.mapping.engine.EntityInterceptor
+
 /**
  * Created by IntelliJ IDEA.
  * User: per
@@ -30,16 +34,67 @@ class MongoTenantDatastore extends MongoDatastore {
 
   Logger log = Logger.getLogger(getClass())
 
+
   //override the private field in the super class. and take care that we override all methods that use this field also!
   protected Map<PersistentEntity, MongoTemplate> mongoTemplates = new ConcurrentHashMap<PersistentEntity, MongoTemplate>();
+
+  //tenant id maps to the hashmap used for the persistent entity
   protected Map<Object, Map<PersistentEntity, MongoTemplate>> mongoTenantTemplates = new ConcurrentHashMap<Object, ConcurrentHashMap<PersistentEntity, MongoTemplate>>();
 
+
+
+  //map different mappingcontexts to different tenants and also interceptors to different tenant objects.
+
+    protected Map<Object,MappingContext> mappingContextTenants = new ConcurrentHashMap<Object,MappingContext>();
+    protected Map<Object,List<EntityInterceptor>> interceptorsTenants = new ConcurrentHashMap<Object,List<EntityInterceptor>>()
+
+
+
+
   def config = ConfigurationHolder.getConfig();
-  MongodbTenantResolver tenantResolver = SpringUtil.getBean("tenantResolver");
+  def tenantResolverProxy
+
+/**
+ * Constructor for creating a MongoDatastore using an existing Mongo instance. In this case
+ * the connection details are only used to supply a USERNAME and PASSWORD
+ *
+ * @param mappingContext The MappingContext
+ * @param mongo The existing Mongo instance
+ */
+  public MongoTenantDatastore(MongoMappingContext mappingContext, Mongo mongo, Map<String, String> connectionDetails, MongodbTenantResolver resolver) {
+    super(mappingContext, mongo, connectionDetails)
+    this.tenantResolverProxy = resolver
+
+
+  }
+
+  public MongoTenantDatastore(MongoMappingContext mappingContext, Mongo mongo, Map<String, String> connectionDetails, Object resolver) {
+    super(mappingContext, mongo, connectionDetails)
+    this.tenantResolverProxy = resolver
+
+  }
+
+
+  public MongoTenantDatastore(MongoMappingContext mappingContext,
+                              Map<String, String> connectionDetails, MongodbTenantResolver resolver) {
+    super(mappingContext, connectionDetails)
+    this.tenantResolverProxy = resolver
+  }
+
+  public MongoTenantDatastore(MongoMappingContext mappingContext,
+                              Map<String, String> connectionDetails, Object resolver) {
+    super(mappingContext, connectionDetails)
+    this.tenantResolverProxy = resolver
+  }
+
+
+
+
+
 
 
   protected Boolean isTenantEntity(PersistentEntity entity) {
-    if (foundInTenantIncludeList(entity) || !foundInTenantExcludeList(entity)) {
+    if (foundInTenantIncludeList(entity) || notFoundInTenantExcludeListIfListExists(entity)) {
       return true
     }
     else {
@@ -56,10 +111,30 @@ class MongoTenantDatastore extends MongoDatastore {
   @Override
   public MongoTemplate getMongoTemplate(PersistentEntity entity) {
 
-    if(isTenantEntity(entity)) {
-      def tenantId = tenantResolver.getTenantId()
-      def tenantHashMap = mongoTenantTemplates.get(tenantId);
-      return tenantHashMap?.get(entity);
+    if (isTenantEntity(entity)) {
+      def tenantId = tenantResolverProxy.getTenantId()
+
+      //if the tenant exist in the hashmap we return it, if it doesn't we have to create a new template
+      //(lazy init) for this tenant and this persistent entity
+      HashMap<PersistentEntity,MongoTemplate> tenantHashMap
+
+      if (mongoTenantTemplates.containsKey(tenantId)) {
+        tenantHashMap = mongoTenantTemplates.get(tenantId);
+        //now we also need to check weather the persisten entity is in the acual hashmap.
+        if (tenantHashMap?.containsKey(entity)) {
+          return tenantHashMap.get(entity)
+        } else {
+          createMongoTemplate(entity,getMongo())    //also creates the hashmap
+          tenantHashMap = mongoTenantTemplates.get(tenantId);
+          return tenantHashMap.get(entity)
+        }
+      } else {
+        //create the hashmap and template for this entity
+        createMongoTemplate(entity,getMongo())
+        tenantHashMap = mongoTenantTemplates.get(tenantId);
+        return tenantHashMap.get(entity)
+      }
+
     } else {
       return mongoTemplates.get(entity);
     }
@@ -67,15 +142,19 @@ class MongoTenantDatastore extends MongoDatastore {
   }
 
 
-  private Boolean foundInTenantExcludeList(PersistentEntity entity) {
+  private Boolean notFoundInTenantExcludeListIfListExists(PersistentEntity entity) {
 
     def config = ConfigurationHolder.config
-    List<Class> excludes = config?.grails?.mongo?.tenant?.excludingdomainclasses
+    def excludes = config?.grails?.mongo?.tenant?.excludingdomainclasses
 
-    if (excludes) {
+    if (excludes instanceof List) {
       Boolean found = false;
-      excludes.each { cls ->
-        if (cls.isInstance(entity)) {
+      excludes.each {Class cls ->
+
+        String entName = entity.getJavaClass().getName()
+        String clsName = cls.getName()
+
+        if (entName.equalsIgnoreCase(clsName)) {
           found = true;
 
         }
@@ -91,12 +170,16 @@ class MongoTenantDatastore extends MongoDatastore {
   }
 
   private Boolean foundInTenantIncludeList(PersistentEntity entity) {
-    List includes = config?.grails?.mongo?.tenant?.includingdomainclasses
+    def includes = config?.grails?.mongo?.tenant?.includingdomainclasses
 
     if (includes instanceof List) {
 
-      includes.each{ cls->
-        if (cls.isInstance(entity)) {
+      includes.each { Class cls ->
+
+        String entName = entity.getJavaClass().getName()
+             String clsName = cls.getName()
+
+        if (entName.equalsIgnoreCase(clsName)) {
           return true
         }
       }
@@ -129,25 +212,25 @@ class MongoTenantDatastore extends MongoDatastore {
     Boolean tenantTemplateCreated = false;
     if (foundInTenantIncludeList(entity)) {
       mt = createTenantTemplate(mongoInstance, databaseName, collectionName);
-    } else if (foundInTenantExcludeList(entity)) {
+    } else if (notFoundInTenantExcludeListIfListExists(entity)) {
       mt = createTenantTemplate(mongoInstance, databaseName, collectionName);
     } else {
       log.warn("mongo multitenant options not specified, no tenant action will be taken.. ")
     }
 
     if (!mt) {
-      log.info("Class " + entity.class.getName() + " is not a multitenant, assigning template as normal")
+      log.info("Class " + entity.getJavaClass().getName() + " is not a multitenant, assigning template as normal")
       mt = new MongoTemplate(mongoInstance, databaseName, collectionName);
     }
 
     else {
       tenantTemplateCreated = true;
-      log.info("Class " + entity.class.getName() + "is assigned as multitenant template in datastore!")
+      log.info("Class " + entity.getJavaClass().getName() + "is assigned as multitenant template in datastore!")
 
     }
 
-    String username = read(String.class, USERNAME, connectionDetails, null);
-    String password = read(String.class, PASSWORD, connectionDetails, null);
+    String username = connectionDetails?.get("username") ?: null
+    String password = connectionDetails?.get("password") ?: null
 
     if (username != null && password != null) {
       mt.setUsername(username);
@@ -181,18 +264,21 @@ class MongoTenantDatastore extends MongoDatastore {
 
     if (tenantTemplateCreated) {
 
-      def tenantId = tenantResolver?.getTenantId()
+      def tenantId = tenantResolverProxy?.getTenantId()
 
-      def tenantHashMap = mongoTenantTemplates.get(tenantId)
 
+      def tenantHashMap
+
+      //check if the hashmap exists for this tenant otherwise create it
       //lazy initialization
-      if (!tenantHashMap) {
+      if (!mongoTenantTemplates.containsKey(tenantId)) {
         tenantHashMap = new ConcurrentHashMap<PersistentEntity, MongoTemplate>()
-        tenantHashMap.put(entity, mt);
-        mongoTenantTemplates.put(tenantId, tenantHashMap);
+        mongoTenantTemplates.put(tenantId,tenantHashMap);
       } else {
-        tenantHashMap.put(entity, mt);
+        tenantHashMap = mongoTenantTemplates?.get(tenantId)
       }
+
+      tenantHashMap.put(entity, mt);
 
     } else {
 
@@ -206,7 +292,7 @@ class MongoTenantDatastore extends MongoDatastore {
   }
 
   protected MongoTemplate createTenantTemplate(mongoInstance, databaseName, collectionName) {
-    return new MongoTemplate(mongoInstance, tenantResolver.getTenantDatabase(databaseName), tenantResolver.getTenantCollection(collectionName));
+    return new MongoTemplate(mongoInstance, tenantResolverProxy.getTenantDatabase(databaseName), tenantResolverProxy.getTenantCollection(collectionName));
   }
 
 }

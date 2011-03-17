@@ -31,9 +31,10 @@ package se.webinventions
 
 import se.webinventions.mongomultitenant.TenantProvider
 
+
 class Tenant implements TenantProvider {
 
-    String id = UUID.randomUUID().toString()
+
     String collectionNameSuffix
     String databaseNameSuffix
     String name = ""

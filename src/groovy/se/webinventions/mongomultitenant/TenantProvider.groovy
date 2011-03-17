@@ -1,5 +1,7 @@
 package se.webinventions.mongomultitenant
 
+import org.bson.types.ObjectId
+
 /**
  * Created by IntelliJ IDEA.
  * User: per
@@ -10,8 +12,7 @@ package se.webinventions.mongomultitenant
 public interface TenantProvider {
 
 
-  String getId()
-  void setId(String id)
+  Object getId()
   String getCollectionNameSuffix()
   void setCollectionNameSuffix(String collectionName)
   String getDatabaseNameSuffix()
