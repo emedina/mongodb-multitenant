@@ -12,7 +12,7 @@ import org.bson.types.ObjectId
 public interface TenantProvider {
 
 
-  Object getId()
+
   String getCollectionNameSuffix()
   void setCollectionNameSuffix(String collectionName)
   String getDatabaseNameSuffix()

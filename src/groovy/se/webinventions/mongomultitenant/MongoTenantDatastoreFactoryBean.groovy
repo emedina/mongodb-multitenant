@@ -22,20 +22,23 @@ class MongoTenantDatastoreFactoryBean implements FactoryBean<MongoTenantDatastor
 	MappingContext mappingContext
 	Map<String,String> config = [:]
   MongodbTenantResolver tenantResolverProxy
+  MongoDatastore datastore
 
 	@Override
 	public MongoTenantDatastore getObject() throws Exception {
 		
-		MongoDatastore datastore
-		if(mongo != null)
-		 	datastore = new MongoTenantDatastore(mappingContext, mongo,config,tenantResolverProxy)
-		else {
-			datastore = new MongoTenantDatastore(mappingContext, config,tenantResolverProxy)
-		}
-		
-		datastore.addEntityInterceptor(new DomainEventInterceptor())
-		datastore.addEntityInterceptor(new AutoTimestampInterceptor())
-		datastore.afterPropertiesSet()
+		if(!datastore) {
+      if(mongo != null)
+             datastore = new MongoTenantDatastore(mappingContext, mongo,config,tenantResolverProxy)
+          else {
+            datastore = new MongoTenantDatastore(mappingContext, config,tenantResolverProxy)
+          }
+
+          datastore.addEntityInterceptor(new DomainEventInterceptor())
+          datastore.addEntityInterceptor(new AutoTimestampInterceptor())
+          datastore.afterPropertiesSet()
+
+    }
 		return datastore;
 	}
 

@@ -18,7 +18,7 @@ public interface MongodbTenantResolver {
    * @return
    */
 
-  public String getTenantDatabase(String originalDatabaseName)
+  public String getTenantDatabaseName(String originalDatabaseName)
 
   /**
    * Get the collection name used for this tenant. You can .e.g. store the collection name for the tenant in a db entity
@@ -27,7 +27,7 @@ public interface MongodbTenantResolver {
    * @param originalCollectionName name that it should have had if it wasnt a multi tenant
    * @return
    */
-  public String getTenantCollection(String originalCollectionName)
+  public String getTenantCollectionName(String originalCollectionName)
 
   /**
    * Gets the current tenant id, (eg. based on url resolving for example or currently logged in user or whatever)

@@ -40,7 +40,6 @@
     <orderEntry type="module-library">
       <library name="Grails User Library">
         <CLASSES>
-          <root url="file://$MODULE_DIR$/lib" />
           <root url="jar://$USER_HOME$/.ivy2/cache/org.mongodb/mongo-java-driver/jars/mongo-java-driver-2.4.jar!/" />
           <root url="jar://$USER_HOME$/.ivy2/cache/org.springframework/spring-datastore-web/jars/spring-datastore-web-1.0.0.M4.jar!/" />
           <root url="jar://$USER_HOME$/.ivy2/cache/org.springframework.data/spring-data-commons-core/jars/spring-data-commons-core-1.0.0.M3.jar!/" />
@@ -92,7 +91,6 @@
           <root url="file://$MODULE_DIR$/../inconsequential/grails-datastore-gorm-mongo/src/main/groovy" />
           <root url="file://$MODULE_DIR$/../inconsequential/spring-datastore-mongo/src/main/groovy" />
         </SOURCES>
-        <jarDirectory url="file://$MODULE_DIR$/lib" recursive="false" />
       </library>
     </orderEntry>
     <orderEntry type="module" module-name="mongodb-multitenant-grailsPlugins" />

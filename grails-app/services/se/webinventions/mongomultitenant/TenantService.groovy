@@ -7,9 +7,16 @@ import org.springframework.context.ApplicationContextAware
 import org.codehaus.groovy.grails.web.converters.ConverterUtil
 import org.codehaus.groovy.grails.commons.DefaultGrailsApplication
 import org.apache.log4j.Logger
+import com.mongodb.Mongo
+import org.springframework.web.context.request.RequestContextHolder
+import javax.servlet.http.HttpSession
+import org.springframework.datastore.mapping.transactions.SessionHolder
+import org.springframework.beans.factory.NoSuchBeanDefinitionException
+import org.springframework.datastore.mapping.core.ConnectionNotFoundException
+import org.springframework.datastore.mapping.core.Session
 
 
-class TenantService implements  ApplicationContextAware{
+class TenantService implements ApplicationContextAware {
 
   static transactional = false
   static scope = "session"
@@ -18,6 +25,9 @@ class TenantService implements  ApplicationContextAware{
   def applicationContext
   DefaultGrailsApplication grailsApplication
   def tenantResolverProxy
+  MongoTenantDatastore mongoDatastore
+  def sessionFactory
+
 
   Logger log = Logger.getLogger(getClass())
   def config = ConfigurationHolder.getConfig();
@@ -26,10 +36,22 @@ class TenantService implements  ApplicationContextAware{
     this.applicationContext = apctx
   }
 
+  private Session getSession() {
+    def sess
+      try {
+        sess = mongoDatastore.retrieveSession()
 
+      } catch (ConnectionNotFoundException ex) {
+        log.warn("could not get session from datastore .. " +ex)
+      }
+
+
+
+    return sess;
+
+  }
 
   //probably a session scoped bean as well but this is up to the implementator to decide.
-
 
   /**
    * This method allows you to temporarily switch tenants to perform some operations.  Before
@@ -40,54 +62,65 @@ class TenantService implements  ApplicationContextAware{
    * @throws Throwable
    */
   public void doWithTenant(Object tenantId, Closure closure) throws Throwable {
-    if(!tenantResolverProxy) {
-       tenantResolverProxy= applicationContext.getBean("tenantResolverProxy")
+    if (!tenantResolverProxy) {
+      tenantResolverProxy = applicationContext.getBean("tenantResolverProxy")
     }
-      Object currentTenantId = tenantResolverProxy.getTenantId()
-      tenantResolverProxy.setTenantId(tenantId)
-      Throwable caught = null;
-      try {
 
-          closure.call();
-      } catch (Throwable t) {
-          caught = t;
-      } finally {
-          tenantResolverProxy.setTenantId(currentTenantId);
-      }
-      if (caught != null) {
-          throw caught;
-      }
+    if (!mongoDatastore) {
+      mongoDatastore = applicationContext.getBean("mongoDatastore")
+    }
+
+    Object currentTenantId = tenantResolverProxy.getTenantId()
+    tenantResolverProxy.setTenantId(tenantId)
+
+    //will force a new session with new objects for the correct tenant id
+    def sess  = getSession()
+
+
+    Throwable caught = null;
+    try {
+
+      closure.call();
+    } catch (Throwable t) {
+      caught = t;
+    } finally {
+      tenantResolverProxy.setTenantId(currentTenantId);
+    }
+    if (caught != null) {
+      throw caught;
+    }
   }
 
-  public TenantProvider createOrGetDefaultTenant(String name){
-    def domainClass = grailsApplication.getClassForName("se.webinventions.Tenant")
+  public TenantProvider createOrGetDefaultTenant(String name) {
+    def tenantClassName = config?.grails?.mongo?.tenant?.tenantclassname ?: "se.webinventions.Tenant"
+    def domainClass = grailsApplication.getClassForName(tenantClassName)
 
     TenantProvider tp
-    try{
+    try {
       tp = domainClass.findByName(name)
 
-    } catch(Exception e) {
+    } catch (Exception e) {
 
     } finally {
-     if(!tp) {
-      tp = createNewTenant(name)
-       try {
-          if(tp?.validate()) {
-            tp?.save(flush:true)
+      if (!tp) {
+        tp = createNewTenant(name)
+
+        try {
+          if (tp?.validate()) {
+            tp?.save(flush: true)
             log.info("got and saved default tenant")
           }
           else {
             log.warn("Could not save default tenant due to validation errors? " + tp?.errors)
           }
 
-        } catch(Exception e) {
-          log.warn("could not save default tenant" +e)
+        } catch (Exception e) {
+          log.warn("could not save default tenant" + e)
         }
 
+      }
+      return tp;
     }
-    return tp;
-    }
-
 
 
   }
@@ -96,16 +129,16 @@ class TenantService implements  ApplicationContextAware{
 
     def tenantsPerDb = config?.grails?.mongo?.tenant?.tenantsPerDb ?: 500
 
-    if(tenantsPerDb instanceof Integer) {
+    if (tenantsPerDb instanceof Integer) {
       tenantsPerDb = 500
     }
-
 
     //determine the tenants db number
 
     //def domainClass = grailsApplication.getClassForName("se.webinventions.TenantDomainMap")
+    def tenantClassName = config?.grails?.mongo?.tenant?.tenantclassname ?: "se.webinventions.Tenant"
 
-    def domainClass = grailsApplication.getClassForName("se.webinventions.Tenant")
+    def domainClass = grailsApplication.getClassForName(tenantClassName)
 
     def tenants
     try {
@@ -117,17 +150,25 @@ class TenantService implements  ApplicationContextAware{
     }
 
     def noOfTenants = tenants?.size()
-    Integer dbNum = Math.floor(((double)noOfTenants)/((double)tenantsPerDb))
-
+    Integer dbNum = Math.floor(((double) noOfTenants) / ((double) tenantsPerDb))
 
     //TenantProvider tp = applicationContext.getBean("se.webinventions.Tenant").newInstance()
 
 
-    TenantProvider tp = domainClass.newInstance()
+    TenantProvider tp = domainClass.newInstance();
 
     tp.setName(name)
-    tp.setCollectionNameSuffix("_"+name+"_"+tp.id)
-    tp.setDatabaseNameSuffix("_"+dbNum.toString())
+    tp.setCollectionNameSuffix("_" + name)
+    tp.setDatabaseNameSuffix("_" + dbNum.toString())
+
+    try {
+      tp.save(flush: true)
+      tp.setCollectionNameSuffix(tp.getCollectionNameSuffix() + "_" + tp.id);
+      tp.save(flush: true)
+    } catch (Exception e) {
+      log.debug("could not save tenant on creation (bootstrapping??) " + e)
+
+    }
 
 
     return tp; //saving has to be done by the user of the method in case heY/she wants to add more properties..
