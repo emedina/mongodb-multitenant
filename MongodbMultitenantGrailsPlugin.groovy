@@ -1,19 +1,3 @@
-import org.grails.datastore.gorm.support.DatastorePersistenceContextInterceptor
-import org.springframework.datastore.mapping.web.support.OpenSessionInViewInterceptor
-import org.springframework.datastore.mapping.transactions.DatastoreTransactionManager
-import org.grails.datastore.gorm.GormInstanceApi
-import org.grails.datastore.gorm.GormStaticApi
-import org.grails.datastore.gorm.mongo.*
-import org.grails.datastore.gorm.mongo.bean.factory.*
-import org.springframework.data.document.mongodb.bean.factory.*
-
-import org.codehaus.groovy.grails.commons.GrailsDomainClassProperty
-import org.springframework.datastore.mapping.reflect.ClassPropertyFetcher
-import org.springframework.context.ApplicationContext
-import org.springframework.datastore.mapping.core.Datastore
-import org.springframework.transaction.PlatformTransactionManager
-import org.grails.datastore.gorm.utils.InstanceProxy
-import com.mongodb.ServerAddress
 
 import se.webinventions.mongomultitenant.MongoTenantDatastoreFactoryBean
 import org.springframework.aop.scope.ScopedProxyFactoryBean
@@ -73,6 +57,11 @@ You mark classes either through inclusion or exclusion by adding the config fiel
       targetBeanName = 'tenantService'
       proxyTargetClass = true
     }
+
+
+
+
+
 
     //this will override the mongoDatastore in the grails mongodbplugin so that we can handle multi tenants of
     //some domain classes which are configured as exclude or include (not both) list of domain classes i Config.groovy

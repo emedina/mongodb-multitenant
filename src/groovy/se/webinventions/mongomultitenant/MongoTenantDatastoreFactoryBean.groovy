@@ -22,7 +22,7 @@ class MongoTenantDatastoreFactoryBean implements FactoryBean<MongoTenantDatastor
 	MappingContext mappingContext
 	Map<String,String> config = [:]
   MongodbTenantResolver tenantResolverProxy
-  MongoDatastore datastore
+  MongoTenantDatastore datastore
 
 	@Override
 	public MongoTenantDatastore getObject() throws Exception {
