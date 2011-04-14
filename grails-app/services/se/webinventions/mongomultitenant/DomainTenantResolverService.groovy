@@ -151,7 +151,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
           }
 
         }
-                  //todo add support for shiro security.
+                  //todo add support for shiro security or others..
 
 
         defaultTenant = newTenant;
