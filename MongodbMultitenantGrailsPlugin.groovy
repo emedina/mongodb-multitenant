@@ -24,7 +24,7 @@ class MongodbMultitenantGrailsPlugin {
   def title = "Mongodb Multitenant plugin"
   def description = '''\\
 Plugin that enables multitenancy for mongodb. The plugin works by overrideing the mongoDatastore bean. All tenants have their own
-MongoTemplate for choosen tenant domain classes thus creating their own collections and database settings.
+MongoTemplate for choosen tenant domain classes and thereby enabling them to create their own collections and database settings.
 
 Collections are postfixed with _tenantname_tenantid, and also the database is post fixed with an integer 'e.g. _0' for the first
 e.g. 500 tenants (depending on setting in config file)
@@ -116,8 +116,8 @@ Config options include:
   You cannot specify both exclude and include at this stage. If specifying exclude then 'ALL' Domain classes except those in list will be tenant dependent
   Specifying include -> only those domain classes are tenant dependent.
 
-Sources: https://github.com/webinventions/mongodb-multitenant
-Docs: Here..
+* Sources: https://github.com/webinventions/mongodb-multitenant
+* Docs: Here..
 
 
 #Release history#
@@ -130,6 +130,11 @@ Initial release.
 
 * Secure plugin with more tests and some cleanups.
 
+
+
+#Limitations#
+
+* Right now it is not possible to have different 'ports / ips' etc for tenants.
 
 
 '''
