@@ -29,7 +29,6 @@ class TenantService implements ApplicationContextAware {
   def sessionFactory
 
 
-  Logger log = Logger.getLogger(getClass())
   def config = ConfigurationHolder.getConfig();
 
   void setApplicationContext(ApplicationContext apctx) {
@@ -42,6 +41,7 @@ class TenantService implements ApplicationContextAware {
         sess = mongoDatastore.retrieveSession()
 
       } catch (ConnectionNotFoundException ex) {
+        Logger log = Logger.getLogger(getClass())
         log.warn("could not get session from datastore .. " +ex)
       }
 
@@ -92,6 +92,7 @@ class TenantService implements ApplicationContextAware {
   }
 
   public TenantProvider createOrGetDefaultTenant(String name) {
+    Logger log = Logger.getLogger(getClass())
     def tenantClassName = config?.grails?.mongo?.tenant?.tenantclassname ?: "se.webinventions.Tenant"
     def domainClass = grailsApplication.getClassForName(tenantClassName)
 
@@ -126,6 +127,7 @@ class TenantService implements ApplicationContextAware {
   }
 
   public TenantProvider createNewTenant(String name) {
+    Logger log = Logger.getLogger(getClass())
 
     def tenantsPerDb = config?.grails?.mongo?.tenant?.tenantsPerDb ?: 500
 

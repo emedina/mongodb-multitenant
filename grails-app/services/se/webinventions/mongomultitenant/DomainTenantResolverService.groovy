@@ -29,7 +29,6 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
   ApplicationContext applicationContext
 
   def config = ConfigurationHolder.getConfig();
-  Logger log = Logger.getLogger(getClass())
 
 
   TenantProvider defaultTenant //tenant that is cohering to the current url etc (default resovlved)
@@ -67,6 +66,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
    * @return
    */
   private TenantProvider resolveDomainTenant() {
+    Logger log = Logger.getLogger(getClass())
     this.currentServerName = resolveServerName()
 
     //ConverterUtil cu = new ConverterUtil();
