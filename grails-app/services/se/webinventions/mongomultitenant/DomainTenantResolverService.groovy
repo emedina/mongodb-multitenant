@@ -24,6 +24,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
   GrailsApplication grailsApplication
   def tenantServiceProxy
   def currentServerName
+  List<TenantChangeListener> listeners = new LinkedList<TenantChangeListener>();
 
 
   ApplicationContext applicationContext
@@ -40,6 +41,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
     TenantProvider tenant = resolveDomainTenant()
     defaultTenant = tenant;
 
+     updateListeners(defaultTenant)
     return defaultTenant
   }
 
@@ -61,49 +63,59 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
 
   }
 
+  public Object getTenantDomainMapping(TenantProvider tp) {
+    this.currentServerName = resolveServerName()
+
+
+       def tenantMappingClassName = config?.grails?.mongo?.tenant?.tenantmappingclassname ?: "se.webinventions.TenantDomainMap"
+       def domainClass = grailsApplication.getClassForName(tenantMappingClassName)
+
+       if(!tenantServiceProxy)
+           {
+             tenantServiceProxy = applicationContext.getBean("tenantServiceProxy")
+           }
+
+       def domainTenantMappings
+       def tenant;
+       try {
+         domainTenantMappings = domainClass.list()
+
+       } catch (Exception e) {
+         //we are in bootstrapping perhaps so the gorm methods are not yet available
+         log.info("Bootstrapping so resolving tenant to bootstrapping tenant")
+         def deftenantid = config?.grails?.mongo?.tenant?.defaultTenantId ?: 0
+
+         tenant = tenantServiceProxy.createNewTenant("bootstrap_init_temp")
+         tenant.id = deftenantid;
+         return tenant;
+       }
+       finally {
+         domainTenantMappings?.each { dom ->
+
+           if (currentServerName.toString().equalsIgnoreCase(dom.domainName)) {
+             return dom;
+           }
+         }
+
+  }
+      return null;
+  }
+
   /**
    * perhaps make this public +send in the request attribute
    * and use it from a filter and make the service work on application context level instead
    * @return
    */
   private TenantProvider resolveDomainTenant() {
-    this.currentServerName = resolveServerName()
 
-    //ConverterUtil cu = new ConverterUtil();
-    //cu.setGrailsApplication(grailsApplication)
-
-    //cu.getDomainClass("se.webinventions.TenantDomainMap")
-    def tenantMappingClassName = config?.grails?.mongo?.tenant?.tenantmappingclassname ?: "se.webinventions.TenantDomainMap"
-    def domainClass = grailsApplication.getClassForName(tenantMappingClassName)
-
-    if(!tenantServiceProxy)
-        {
-          tenantServiceProxy = applicationContext.getBean("tenantServiceProxy")
-        }
-
-    def domainTenantMappings
-    def tenant;
-    try {
-      domainTenantMappings = domainClass.list()
-
-    } catch (Exception e) {
-      //we are in bootstrapping perhaps so the gorm methods are not yet available
-      log.info("Bootstrapping so resolving tenant to bootstrapping tenant")
-      def deftenantid = config?.grails?.mongo?.tenant?.defaultTenantId ?: 0
-
-      tenant = tenantServiceProxy.createNewTenant("bootstrap_init_temp")
-      tenant.id = deftenantid;
-      return tenant;
-
+     def dommap =   getTenantDomainMapping();
+    def tenant
+    if(dommap) {
+      if(dommap?.tenant) {
+           tenant=dommap.tenant
+      }
 
     }
-    finally {
-      domainTenantMappings?.each { dom ->
-
-        if (currentServerName.toString().equalsIgnoreCase(dom.domainName)) {
-          tenant = dom?.tenant;
-        }
-      }
 
       //if tenant is null still we need to find or create a default tenant with default options specified in config.groovy
       if(!tenant) {
@@ -124,15 +136,20 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
       }
 
 
-    }
+
 
     return tenant;
   }
 
-
+  private updateListeners(TenantProvider newtenant) {
+      this.listeners.each { l ->
+      l.tenantChanged()
+    }
+  }
 
   def revertToDefaultTenant() {
     currentTenant = null;
+       updateListeners(defaultTenant)
     return defaultTenant
   }
 
@@ -155,6 +172,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
 
 
         defaultTenant = newTenant;
+         updateListeners(newTenant)
         currentTenant = null;
       }
 
@@ -240,5 +258,9 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
 
   void setApplicationContext(ApplicationContext applicationContext) {
     this.applicationContext = applicationContext
+  }
+
+  void addListener(TenantChangeListener l) {
+    this.listeners.add(l)
   }
 }
