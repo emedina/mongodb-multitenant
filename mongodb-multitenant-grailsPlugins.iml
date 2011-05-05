@@ -9,6 +9,11 @@
       <excludeFolder url="file://$USER_HOME$/.grails/1.3.7/projects/mongodb-multitenant/plugins/maven-publisher-0.7.5/target/test-classes" />
       <excludeFolder url="file://$USER_HOME$/.grails/1.3.7/projects/mongodb-multitenant/plugins/maven-publisher-0.7.5/web-app/plugins" />
     </content>
+    <content url="file://$USER_HOME$/.grails/1.3.7/projects/mongodb-multitenant/plugins/mongodb-1.0-M4">
+      <excludeFolder url="file://$USER_HOME$/.grails/1.3.7/projects/mongodb-multitenant/plugins/mongodb-1.0-M4/target/classes" />
+      <excludeFolder url="file://$USER_HOME$/.grails/1.3.7/projects/mongodb-multitenant/plugins/mongodb-1.0-M4/target/test-classes" />
+      <excludeFolder url="file://$USER_HOME$/.grails/1.3.7/projects/mongodb-multitenant/plugins/mongodb-1.0-M4/web-app/plugins" />
+    </content>
     <content url="file://$USER_HOME$/.grails/1.3.7/projects/mongodb-multitenant/plugins/tomcat-1.3.7">
       <sourceFolder url="file://$USER_HOME$/.grails/1.3.7/projects/mongodb-multitenant/plugins/tomcat-1.3.7/src/groovy" isTestSource="false" />
       <excludeFolder url="file://$USER_HOME$/.grails/1.3.7/projects/mongodb-multitenant/plugins/tomcat-1.3.7/target/classes" />

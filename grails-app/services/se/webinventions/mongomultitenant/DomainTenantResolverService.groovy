@@ -30,7 +30,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
   ApplicationContext applicationContext
 
   def config = ConfigurationHolder.getConfig();
-  Logger log = Logger.getLogger(getClass())
+
 
 
   TenantProvider defaultTenant //tenant that is cohering to the current url etc (default resovlved)
@@ -65,7 +65,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
 
   public Object getTenantDomainMapping(TenantProvider tp) {
     this.currentServerName = resolveServerName()
-
+             Logger log = Logger.getLogger(getClass())
 
        def tenantMappingClassName = config?.grails?.mongo?.tenant?.tenantmappingclassname ?: "se.webinventions.TenantDomainMap"
        def domainClass = grailsApplication.getClassForName(tenantMappingClassName)
@@ -88,6 +88,8 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
          tenant = tenantServiceProxy.createNewTenant("bootstrap_init_temp")
          tenant.id = deftenantid;
          return tenant;
+
+
        }
        finally {
          domainTenantMappings?.each { dom ->
@@ -154,7 +156,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
   }
 
   def getTenantId() {
-
+                Logger log = Logger.getLogger(getClass())
     //make security check based on the current server name change
     if(!resolveServerName()?.equalsIgnoreCase(this.currentServerName)) {
       //switch tenant
