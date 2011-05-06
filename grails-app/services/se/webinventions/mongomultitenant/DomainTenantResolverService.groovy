@@ -63,7 +63,9 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
 
   }
 
-  public Object getTenantDomainMapping(TenantProvider tp) {
+
+
+  public Object getTenantDomainMapping(TenantProvider tp) throws Exception {
     this.currentServerName = resolveServerName()
              Logger log = Logger.getLogger(getClass())
 
@@ -77,29 +79,18 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
 
        def domainTenantMappings
        def tenant;
-       try {
          domainTenantMappings = domainClass.list()
 
-       } catch (Exception e) {
-         //we are in bootstrapping perhaps so the gorm methods are not yet available
-         log.info("Bootstrapping so resolving tenant to bootstrapping tenant")
-         def deftenantid = config?.grails?.mongo?.tenant?.defaultTenantId ?: 0
 
-         tenant = tenantServiceProxy.createNewTenant("bootstrap_init_temp")
-         tenant.id = deftenantid;
-         return tenant;
-
-
-       }
-       finally {
          domainTenantMappings?.each { dom ->
 
            if (currentServerName.toString().equalsIgnoreCase(dom.domainName)) {
              return dom;
            }
-         }
 
-  }
+          }
+
+
       return null;
   }
 
@@ -109,9 +100,25 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
    * @return
    */
   private TenantProvider resolveDomainTenant() {
+  Logger log = Logger.getLogger(getClass())
+     def dommap
+      def tenant
+    try {
+      dommap=   getTenantDomainMapping()
+    }
+    catch(Exception e) {
 
-     def dommap =   getTenantDomainMapping();
-    def tenant
+
+      //we are in bootstrapping perhaps so the gorm methods are not yet available
+         log.info("Bootstrapping so resolving tenant to bootstrapping tenant")
+         def deftenantid = config?.grails?.mongo?.tenant?.defaultTenantId ?: 0
+
+         tenant = tenantServiceProxy.createNewTenant("bootstrap_init_temp")
+         tenant.id = deftenantid;
+
+    };
+
+
     if(dommap) {
       if(dommap?.tenant) {
            tenant=dommap.tenant
