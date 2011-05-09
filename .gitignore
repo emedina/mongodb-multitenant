@@ -1,0 +1,13 @@
+.metadata
+.DS_Store
+build
+.gradle
+target
+
+.classpath
+.project
+out
+stacktrace.log
+*.iml
+.idea
+.settings
