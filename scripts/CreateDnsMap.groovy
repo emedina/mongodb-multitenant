@@ -19,10 +19,10 @@ class TenantDomainMap implements TenantDomainMapProvider{
   String domainUrl
 
 
-         public TenantProvider getTenant() {
+         public Tenant getTenant() {
           return this.tenant;
           }
-    public void setTenant(TenantProvider ten) {
+    public void setTenant(Tenant ten) {
         this.tenant=ten;
     }
     static constraints = {

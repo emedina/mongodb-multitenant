@@ -80,18 +80,19 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
        def domainTenantMappings
        def tenant;
          domainTenantMappings = domainClass.list()
-
+   def foundMapping = null
 
          domainTenantMappings?.each { domtm ->
 
            if (currentServerName.toString().equalsIgnoreCase(domtm.getDomainUrl())) {
-             return domtm;
+             foundMapping= domtm;
+
            }
 
           }
 
 
-      return null;
+      return foundMapping;
   }
 
   /**
