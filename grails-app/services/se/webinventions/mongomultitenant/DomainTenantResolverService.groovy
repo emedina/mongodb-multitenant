@@ -82,10 +82,10 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
          domainTenantMappings = domainClass.list()
 
 
-         domainTenantMappings?.each { dom ->
+         domainTenantMappings?.each { domtm ->
 
-           if (currentServerName.toString().equalsIgnoreCase(dom.domainName)) {
-             return dom;
+           if (currentServerName.toString().equalsIgnoreCase(domtm.getDomainUrl())) {
+             return domtm;
            }
 
           }
@@ -120,8 +120,8 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
 
 
     if(dommap) {
-      if(dommap?.tenant) {
-           tenant=dommap.tenant
+      if(dommap?.getTenant()) {
+           tenant=dommap.getTenant()
       }
 
     }

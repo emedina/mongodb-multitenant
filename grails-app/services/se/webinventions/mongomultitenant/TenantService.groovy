@@ -83,6 +83,7 @@ class TenantService implements ApplicationContextAware {
       closure.call();
     } catch (Throwable t) {
       caught = t;
+        tenantResolverProxy.setTenantId(currentTenantId);
     } finally {
       tenantResolverProxy.setTenantId(currentTenantId);
     }

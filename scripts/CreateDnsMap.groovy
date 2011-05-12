@@ -9,14 +9,22 @@ target(main: "This will create the default domain classes that maps tenants towa
 
 package se.webinventions
 
+import se.webinventions.mongomultitenant.TenantDomainMapProvider
 /**
  * Class to map tenant to a specific url.
  */
-class TenantDomainMap {
+class TenantDomainMap implements TenantDomainMapProvider{
 
   Tenant tenant
-  String domainName
+  String domainUrl
 
+
+         public TenantProvider getTenant() {
+          return this.tenant;
+          }
+    public void setTenant(TenantProvider ten) {
+        this.tenant=ten;
+    }
     static constraints = {
     }
 }
