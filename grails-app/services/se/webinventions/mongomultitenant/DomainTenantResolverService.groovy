@@ -84,8 +84,18 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
 
          domainTenantMappings?.each { domtm ->
 
-           if (currentServerName.toString().equalsIgnoreCase(domtm.getDomainUrl())) {
-             foundMapping= domtm;
+           if (currentServerName.toString().compareToIgnoreCase(domtm.getDomainUrl())>=0) {
+             if(foundMapping!=null) {
+               //determine if its a better match than the previous (more exact)
+               if(currentServerName.toString().compareToIgnoreCase(domtm.getDomainUrl())<
+                   currentServerName.toString().compareToIgnoreCase(foundMapping.getDomainUrl)) {
+                 foundMapping = domtm
+               }
+             } else {
+               //first match
+              foundMapping= domtm;
+             }
+
 
            }
 
