@@ -180,9 +180,26 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
   }
 
   def getTenantId() {
+    securityCheckDomainChangeAndTenantChange()
+
+    if (currentTenant) {
+      return currentTenant?.id
+    } else {
+
+      if (!defaultTenant) {
+        return resolvedefaultTenant()?.id
+      } else {
+        return defaultTenant?.id
+      }
+
+    }
+  }
+
+  def securityCheckDomainChangeAndTenantChange() {
+
     Logger log = Logger.getLogger(getClass())
     //make security check based on the current server name change
-    if (!resolveServerName()?.equalsIgnoreCase(this.currentServerName)) {
+    if (!resolveServerName()?.equalsIgnoreCase(currentServerName)) {
       //switch tenant
       def newTenant = resolveDomainTenant()
       if (newTenant != defaultTenant) {
@@ -204,17 +221,6 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
 
     }
 
-    if (currentTenant) {
-      return currentTenant?.id
-    } else {
-
-      if (!defaultTenant) {
-        return resolvedefaultTenant()?.id
-      } else {
-        return defaultTenant?.id
-      }
-
-    }
   }
 
   @Override
@@ -273,6 +279,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
   }
 
   public Object getTenant() {
+    securityCheckDomainChangeAndTenantChange();
     if (currentTenant) {return currentTenant}
     else { return defaultTenant}
   }
