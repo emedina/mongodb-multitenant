@@ -49,7 +49,7 @@ class DomainTenantResolverService implements MongodbTenantResolver, ApplicationC
   private String resolveServerName() {
     def serverName = getCurrentRequestAttr()?.getRequest()?.getServerName();
     if (!serverName) {
-      serverName = "localhost"
+      serverName = "bootstrap"
     }
     return serverName
   }
