@@ -1,7 +1,6 @@
 package se.webinventions.mongomultitenant
 
-import org.springframework.datastore.mapping.mongo.MongoDatastore
-import static org.springframework.datastore.mapping.config.utils.ConfigUtils.read;
+import static org.grails.datastore.mapping.config.utils.ConfigUtils.read;
 
 import java.util.Collections;
 import java.util.Map;
@@ -14,18 +13,18 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.document.mongodb.DbCallback;
 import org.springframework.data.document.mongodb.MongoFactoryBean;
 import org.springframework.data.document.mongodb.MongoTemplate;
-import org.springframework.datastore.mapping.core.AbstractDatastore;
-import org.springframework.datastore.mapping.core.Session;
-import org.springframework.datastore.mapping.document.config.DocumentMappingContext;
-import org.springframework.datastore.mapping.model.ClassMapping;
-import org.springframework.datastore.mapping.model.DatastoreConfigurationException;
-import org.springframework.datastore.mapping.model.MappingContext;
-import org.springframework.datastore.mapping.model.PersistentEntity;
-import org.springframework.datastore.mapping.model.PersistentProperty;
-import org.springframework.datastore.mapping.model.PropertyMapping;
-import org.springframework.datastore.mapping.mongo.config.MongoAttribute;
-import org.springframework.datastore.mapping.mongo.config.MongoCollection;
-import org.springframework.datastore.mapping.mongo.config.MongoMappingContext;
+import org.grails.datastore.mapping.core.AbstractDatastore;
+import org.grails.datastore.mapping.core.Session;
+import org.grails.datastore.mapping.document.config.DocumentMappingContext;
+import org.grails.datastore.mapping.model.ClassMapping;
+import org.grails.datastore.mapping.model.DatastoreConfigurationException;
+import org.grails.datastore.mapping.model.MappingContext;
+import org.grails.datastore.mapping.model.PersistentEntity;
+import org.grails.datastore.mapping.model.PersistentProperty;
+import org.grails.datastore.mapping.model.PropertyMapping;
+import org.grails.datastore.mapping.mongo.config.MongoAttribute;
+import org.grails.datastore.mapping.mongo.config.MongoCollection;
+import org.grails.datastore.mapping.mongo.config.MongoMappingContext;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
@@ -38,15 +37,11 @@ import com.mongodb.ServerAddress;
 import com.mongodb.WriteConcern
 import org.codehaus.groovy.grails.commons.ConfigurationHolder
 import org.apache.log4j.Logger
-import org.springframework.datastore.mapping.mongo.MongoSession;
+import org.grails.datastore.mapping.mongo.MongoSession
+import org.springframework.context.ConfigurableApplicationContext
+import org.springframework.context.ApplicationEventPublisher
+import org.grails.datastore.mapping.mongo.MongoDatastore;
 
-/**
- * Created by IntelliJ IDEA.
- * User: per
- * Date: 2011-03-07
- * Time: 13:02
- * To change this template use File | Settings | File Templates.
- */
 class MongoTenantDatastore extends MongoDatastore implements InitializingBean, MappingContext.Listener  {
 
   public static final String PASSWORD = "password";
@@ -61,128 +56,97 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
 
   def config = ConfigurationHolder.getConfig();
   MongodbTenantResolver tenantResolverProxy
-  protected Map<PersistentEntity, Object> mongoTemplates = new ConcurrentHashMap<PersistentEntity, Object>();
-  protected Map<Object,Map<PersistentEntity, MongoTemplate>> mongoTenantTemplates = new ConcurrentHashMap<Object,Map<PersistentEntity, MongoTemplate>>();
+    protected Map<PersistentEntity, Object> mongoTemplates = new ConcurrentHashMap<PersistentEntity, Object>();
+    protected Map<PersistentEntity, String> mongoCollections = new ConcurrentHashMap<PersistentEntity, String>();
+    protected Map<Object,Map<PersistentEntity, MongoTemplate>> mongoTenantTemplates = new ConcurrentHashMap<Object,Map<PersistentEntity, MongoTemplate>>();
+    protected Map<Object,Map<PersistentEntity, String>> mongoTenantCollections = new ConcurrentHashMap<Object,Map<PersistentEntity, String>>();
 
-/**
- * Constructor for creating a MongoDatastore using an existing Mongo instance. In this case
- * the connection details are only used to supply a USERNAME and PASSWORD
- *
- * @param mappingContext The MappingContext
- * @param mongo The existing Mongo instance
- */
- public MongoTenantDatastore(MongoMappingContext mappingContext, Mongo mongo, Map<String, String> connectionDetails, MongodbTenantResolver resolver) {
-    this(mappingContext, mongo, connectionDetails)
-    this.tenantResolverProxy = resolver
+ /**
+     * Constructs a MongoTenantDatastore using the default database name of "test" and defaults for the host and port.
+     * Typically used during testing.
+     */
+    public MongoTenantDatastore() {
+        this(new MongoMappingContext("test"), Collections.<String, String>emptyMap(), null);
+    }
 
+    /**
+     * Constructs a MongoTenantDatastore using the given MappingContext and connection details map.
+     *
+     * @param mappingContext The MongoMappingContext
+     * @param connectionDetails The connection details containing the {@link #MONGO_HOST} and {@link #MONGO_PORT} settings
+     */
+    public MongoTenantDatastore(MongoMappingContext mappingContext,
+            Map<String, String> connectionDetails, MongoOptions mongoOptions, ConfigurableApplicationContext ctx) {
 
-  }
+        this(mappingContext, connectionDetails, ctx);
+        if (mongoOptions != null) {
+            this.mongoOptions = mongoOptions;
+        }
+    }
 
-  public MongoTenantDatastore(MongoMappingContext mappingContext, Mongo mongo, Map<String, String> connectionDetails, Object resolver) {
-    this(mappingContext, mongo, connectionDetails)
-    this.tenantResolverProxy = resolver
+    /**
+     * Constructs a MongoTenantDatastore using the given MappingContext and connection details map.
+     *
+     * @param mappingContext The MongoMappingContext
+     * @param connectionDetails The connection details containing the {@link #MONGO_HOST} and {@link #MONGO_PORT} settings
+     */
+    public MongoTenantDatastore(MongoMappingContext mappingContext,
+            Map<String, String> connectionDetails, ConfigurableApplicationContext ctx) {
+        super(mappingContext, connectionDetails, ctx);
 
-  }
-
-
-  public MongoTenantDatastore(MongoMappingContext mappingContext,
-                              Map<String, String> connectionDetails, MongodbTenantResolver resolver) {
-    this(mappingContext, connectionDetails)
-    this.tenantResolverProxy = resolver
-  }
-
-  public MongoTenantDatastore(MongoMappingContext mappingContext,
-                              Map<String, String> connectionDetails, Object resolver) {
-    this(mappingContext, connectionDetails)
-    this.tenantResolverProxy = resolver
-  }
-
-
-	/**
-	 * Constructs a MongoTenantDatastore using the default database name of "test" and defaults for the host and port.
-	 * Typically used during testing.
-	 */
-	public MongoTenantDatastore() {
-		this(new MongoMappingContext("test"), Collections.<String, String>emptyMap());
-	}
-
-	/**
-	 * Constructs a MongoDatastore using the given MappingContext and connection details map.
-	 *
-	 * @param mappingContext The MongoMappingContext
-	 * @param connectionDetails The connection details containing the {@link #MONGO_HOST} and {@link #MONGO_PORT} settings
-	 */
-	public MongoTenantDatastore(MongoMappingContext mappingContext,
-			Map<String, String> connectionDetails, MongoOptions mongoOptions) {
-
-		this(mappingContext, connectionDetails);
-		if(mongoOptions != null)
-			this.mongoOptions = mongoOptions;
-	}
-
-	/**
-	 * Constructs a MongoDatastore using the given MappingContext and connection details map.
-	 *
-	 * @param mappingContext The MongoMappingContext
-	 * @param connectionDetails The connection details containing the {@link #MONGO_HOST} and {@link #MONGO_PORT} settings
-	 */
-	public MongoTenantDatastore(MongoMappingContext mappingContext,
-			Map<String, String> connectionDetails) {
-		super(mappingContext, connectionDetails);
-
-		if(mappingContext != null)
-			mappingContext.addMappingContextListener(this);
+        if (mappingContext != null) {
+            mappingContext.addMappingContextListener(this);
+        }
 
         initializeConverters(mappingContext);
+
         mappingContext.getConverterRegistry().addConverter(new Converter<String, ObjectId>() {
-			@Override
-			public ObjectId convert(String source) {
-				return new ObjectId(source);
-			}
+            public ObjectId convert(String source) {
+                return new ObjectId(source);
+            }
         });
+
         mappingContext.getConverterRegistry().addConverter(new Converter<ObjectId, String>() {
-        	@Override
-        	public String convert(ObjectId source) {
-	        	return source.toString();
-        	}
+            public String convert(ObjectId source) {
+                return source.toString();
+            }
         });
-	}
+    }
 
-	public MongoTenantDatastore(MongoMappingContext mappingContext) {
-		this(mappingContext, Collections.<String, String>emptyMap());
-	}
+    public MongoTenantDatastore(MongoMappingContext mappingContext) {
+        this(mappingContext, Collections.<String, String>emptyMap(), null);
+    }
 
-	/**
-	 * Constructor for creating a MongoDatastore using an existing Mongo instance
-	 * @param mappingContext The MappingContext
-	 * @param mongo The existing Mongo instance
-	 */
-	public MongoTenantDatastore(MongoMappingContext mappingContext, Mongo mongo) {
-		this(mappingContext, Collections.<String, String>emptyMap());
-		this.mongo = mongo;
-	}
+    /**
+     * Constructor for creating a MongoTenantDatastore using an existing Mongo instance
+     * @param mappingContext The MappingContext
+     * @param mongo The existing Mongo instance
+     */
+    public MongoTenantDatastore(MongoMappingContext mappingContext, Mongo mongo,
+              ConfigurableApplicationContext ctx) {
+        this(mappingContext, Collections.<String, String>emptyMap(), ctx);
+        this.mongo = mongo;
+    }
 
-	/**
-	 * Constructor for creating a MongoDatastore using an existing Mongo instance. In this case
-	 * the connection details are only used to supply a USERNAME and PASSWORD
-	 *
-	 * @param mappingContext The MappingContext
-	 * @param mongo The existing Mongo instance
-	 */
-	public MongoTenantDatastore(MongoMappingContext mappingContext, Mongo mongo, Map<String, String> connectionDetails) {
-		this(mappingContext, connectionDetails);
-		this.mongo = mongo;
-	}
-
+    /**
+     * Constructor for creating a MongoTenantDatastore using an existing Mongo instance. In this case
+     * the connection details are only used to supply a USERNAME and PASSWORD
+     *
+     * @param mappingContext The MappingContext
+     * @param mongo The existing Mongo instance
+     */
+    public MongoTenantDatastore(MongoMappingContext mappingContext, Mongo mongo,
+           Map<String, String> connectionDetails, ConfigurableApplicationContext ctx) {
+        this(mappingContext, connectionDetails, ctx);
+        this.mongo = mongo;
+    }
 
 	public Mongo getMongo() {
 		return mongo;
 	}
 
-	@Override
-	protected Session createSession(Map<String, String> connectionDetails) {
-		return new MongoSession(this, getMappingContext());
-	}
+
+
 
 	public void afterPropertiesSet() throws Exception {
 		if(this.mongo == null) {
@@ -204,13 +168,6 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
 			createMongoTemplate(entity, mongo);
 		}
 	}
-
-
-    public void persistentEntityAdded(PersistentEntity entity) {
-		createMongoTemplate(entity, this.mongo);
-	}
-
-
 
 
 
@@ -313,7 +270,7 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
 
     if (!mt) {
       log.info("Class " + entity.getJavaClass().getName() + " is not a multitenant, assigning template as normal")
-      mt = new MongoTemplate(mongoInstance, databaseName, collectionName);
+      mt = new MongoTemplate(mongoInstance, databaseName);
     }
 
     else {
@@ -328,6 +285,8 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
     //put it in normal list
       if(!mongoTemplates.containsKey(entity))
             mongoTemplates.put(entity, mt);
+      if(!mongoCollections.containsKey(entity))
+            mongoCollections.put(entity, collectionName);
 
   }
 
@@ -363,15 +322,20 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
     }
 
     def tenantid = tenantResolverProxy.getTenantId()
-    MongoTemplate mt = new MongoTemplate(mongoInstance,databaseName, collectionName);
+    MongoTemplate mt = new MongoTemplate(mongoInstance,databaseName);
 
     //add it to the tenant lists
-    if(!mongoTenantTemplates.containsKey(tenantid)) {
-        mongoTenantTemplates.put(tenantid,new ConcurrentHashMap<PersistentEntity, MongoTemplate>() )
+      if(!mongoTenantTemplates.containsKey(tenantid)) {
+          mongoTenantTemplates.put(tenantid,new ConcurrentHashMap<PersistentEntity, MongoTemplate>() )
 
-    }
+      }
+      if(!mongoTenantCollections.containsKey(tenantid)) {
+          mongoTenantCollections.put(tenantid,new ConcurrentHashMap<PersistentEntity, String>() )
 
-    mongoTenantTemplates.get(tenantid).put(entity,mt);
+      }
+
+      mongoTenantTemplates.get(tenantid).put(entity,mt);
+      mongoTenantCollections.get(tenantid).put(entity,collectionName);
 
     initializeTenantTemplate(mt,tenantMongoCollection,entity);
 
@@ -396,7 +360,7 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
                DataAccessException {
 
              if (writeConcern != null) {
-               DBCollection collection = db.getCollection(mt.getDefaultCollectionName());
+               DBCollection collection = db.getCollection(mongoCollection.getCollection());
                collection.setWriteConcern(writeConcern);
              }
              return null;
@@ -417,15 +381,15 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
 
 
 
-     initializeTenantIndices(entity, mt);
+     initializeTenantIndices(entity, mt, mongoCollection);
 
 
    }
 
-    protected void initializeTenantIndices(final PersistentEntity entity, final Object template) {
+    protected void initializeTenantIndices(final PersistentEntity entity, final Object template, final MongoCollection mongoCollection) {
         template.execute(new DbCallback<Object>() {
             public Object doInDB(DB db) throws MongoException, DataAccessException {
-                final DBCollection collection = db.getCollection(template.getDefaultCollectionName());
+                final DBCollection collection = db.getCollection(mongoCollection.getCollection());
 
                 final ClassMapping<MongoCollection> classMapping = entity.getMapping();
                 if(classMapping != null) {
@@ -505,7 +469,7 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
               DataAccessException {
 
             if (writeConcern != null) {
-              DBCollection collection = db.getCollection(mt.getDefaultCollectionName());
+              DBCollection collection = db.getCollection(mongoCollection.getCollection());
               collection.setWriteConcern(writeConcern);
             }
             return null;
@@ -524,7 +488,7 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
 
 
 
-    initializeIndices(entity, mt);
+    initializeIndices(entity, mt, mongoCollection);
 
 
   }
@@ -534,10 +498,10 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
      * @param entity The entity
      * @param template The template
      */
-    protected void initializeIndices(final PersistentEntity entity, final Object template) {
+    protected void initializeIndices(final PersistentEntity entity, final Object template, final MongoCollection mongoCollection) {
         template.execute(new DbCallback<Object>() {
             public Object doInDB(DB db) throws MongoException, DataAccessException {
-                final DBCollection collection = db.getCollection(template.getDefaultCollectionName());
+                final DBCollection collection = db.getCollection(mongoCollection.getCollection());
 
                 final ClassMapping<MongoCollection> classMapping = entity.getMapping();
                 if(classMapping != null) {
@@ -623,16 +587,28 @@ class MongoTenantDatastore extends MongoDatastore implements InitializingBean, M
   }
 
 
-  public MongoTemplate getMongoTemplate(PersistentEntity entity) {
+    public MongoTemplate getMongoTemplate(PersistentEntity entity) {
 
 
-    if(isTenantEntity(entity)) {
-      return ensureAndGetTenantEntity(entity)
-    } else {
-      return mongoTemplates.get(entity)
-    }
+      if(isTenantEntity(entity)) {
+        return ensureAndGetTenantEntity(entity)
+      } else {
+        return mongoTemplates.get(entity)
+      }
 
-	}
+      }
+
+    public String getCollectionName(PersistentEntity entity) {
+
+
+      if(isTenantEntity(entity)) {
+          def currentTenant = tenantResolverProxy?.getTenantId();
+        return mongoTenantCollections.get(currentTenant).get(entity)
+      } else {
+        return mongoCollections.get(entity)
+      }
+
+      }
 
   MongoTemplate ensureAndGetTenantEntity(PersistentEntity persistentEntity) {
       return getTenantDelegate(persistentEntity,this.getMongo()) as MongoTemplate;
